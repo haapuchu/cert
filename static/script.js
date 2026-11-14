@@ -3,10 +3,16 @@ const ctx = canvas.getContext('2d');
 
 const nameInput = document.getElementById('name');
 const dateInput = document.getElementById('date');
+const datePicker = document.getElementById('datePicker');
 const pdfBtn = document.getElementById('pdfBtn');
 
 const scale = 300 / 72;
 const img = new Image();
+
+const months = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 // Coordinates
 const nameX = 40.0 * scale;
@@ -50,6 +56,19 @@ document.fonts.ready.then(draw);
 
 nameInput.addEventListener('input', draw);
 dateInput.addEventListener('input', draw);
+
+// When a date is chosen from calendar, format to "DD MMMM YYYY"
+datePicker.addEventListener('change', (e) => {
+  if (!e.target.value) return;
+  const parts = e.target.value.split('-');
+  if (parts.length === 3) {
+    const y = parts[0];
+    const m = months[parseInt(parts[1], 10) - 1];
+    const d = parseInt(parts[2], 10);
+    dateInput.value = `${d} ${m} ${y}`;
+    draw();
+  }
+});
 
 // Download helper
 function download(url, filename) {

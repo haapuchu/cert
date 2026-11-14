@@ -53,6 +53,27 @@ form {
   gap: 4px;
 }
 
+.date-row {
+  display: flex;
+  gap: 8px;
+}
+
+.date-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.date-row input[type="date"] {
+  width: auto;
+  cursor: pointer;
+}
+
+@media (max-width: 400px) {
+  .date-row {
+    flex-direction: column;
+  }
+}
+
 label {
   font-size: 13px;
   color: #555;
