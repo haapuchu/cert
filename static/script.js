@@ -80,24 +80,56 @@ function download(url, filename) {
   document.body.removeChild(a);
 }
 
-// Download PDF
+// Build the PDF in the browser (no server needed)
+const DEFAULT_NAME = 'mtu skthu';
+const DEFAULT_DATE = '13 November 2026';
+let fontBytesPromise = null;
+const templateCache = {};
+
+function loadBytes(url) {
+  return fetch(url).then((r) => {
+    if (!r.ok) throw new Error(`failed to load ${url}`);
+    return r.arrayBuffer();
+  });
+}
+
+async function buildPdf(name, date) {
+  const { PDFDocument, rgb } = PDFLib;
+  name = (name || DEFAULT_NAME).trim();
+  date = (date || DEFAULT_DATE).trim();
+  const replaceDate = date && date !== DEFAULT_DATE;
+
+  // Templates were pre-redacted: original name (and date) truly removed
+  const tplUrl = replaceDate ? 'template_blank.pdf' : 'template_noname.pdf';
+  templateCache[tplUrl] = templateCache[tplUrl] || loadBytes(tplUrl);
+  fontBytesPromise = fontBytesPromise || loadBytes('Roboto-Regular.ttf');
+  const [tplBytes, fontBytes] = await Promise.all([templateCache[tplUrl], fontBytesPromise]);
+
+  const pdf = await PDFDocument.load(tplBytes);
+  pdf.registerFontkit(fontkit);
+  const font = await pdf.embedFont(fontBytes, { subset: true });
+  const page = pdf.getPage(0);
+  const height = page.getHeight();
+
+  // PDF coordinates are bottom-up; convert from top-down baselines
+  page.drawText(name, { x: 40.0, y: height - 308.28, size: 20, font, color: rgb(0, 0, 0) });
+  if (replaceDate) {
+    page.drawText(date, { x: 611.65, y: height - 510.28, size: 14, font, color: rgb(0, 0, 0) });
+  }
+  return pdf.save();
+}
+
 pdfBtn.addEventListener('click', async () => {
   pdfBtn.disabled = true;
   pdfBtn.textContent = 'downloading...';
   try {
-    const res = await fetch('/api/export/pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: nameInput.value,
-        date: dateInput.value
-      })
-    });
-    const blob = await res.blob();
+    const bytes = await buildPdf(nameInput.value, dateInput.value);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     download(url, 'certificate.pdf');
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (err) {
+    console.error(err);
     alert('error downloading pdf');
   } finally {
     pdfBtn.disabled = false;
