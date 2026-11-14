@@ -80,25 +80,60 @@ function download(url, filename) {
   document.body.removeChild(a);
 }
 
+// Build the PDF in the browser from the pre-redacted templates
+const DEFAULT_NAME = 'mtu skthu';
+const DEFAULT_DATE = '13 November 2026';
+const assetCache = {};
+
+async function loadAsset(url) {
+  if (!assetCache[url]) {
+    assetCache[url] = fetch(url).then((res) => {
+      if (!res.ok) throw new Error(`failed to load ${url}`);
+      return res.arrayBuffer();
+    });
+  }
+  return assetCache[url];
+}
+
+async function buildPdf(rawName, rawDate) {
+  const { PDFDocument, rgb } = PDFLib;
+  const name = (rawName || '').trim() || DEFAULT_NAME;
+  const date = (rawDate || '').trim() || DEFAULT_DATE;
+  const replaceDate = date !== DEFAULT_DATE;
+
+  const [templateBytes, fontBytes] = await Promise.all([
+    loadAsset(replaceDate ? 'template_name_date.pdf' : 'template_name.pdf'),
+    loadAsset('Roboto-Regular.ttf')
+  ]);
+
+  const doc = await PDFDocument.load(templateBytes);
+  doc.registerFontkit(fontkit);
+  const font = await doc.embedFont(fontBytes, { subset: true });
+  const page = doc.getPage(0);
+  const height = page.getHeight();
+  const black = rgb(0, 0, 0);
+
+  page.drawText(name, { x: 40.0, y: height - 308.28, size: 20, font, color: black });
+  if (replaceDate) {
+    page.drawText(date, { x: 611.65, y: height - 510.28, size: 14, font, color: black });
+  }
+
+  return doc.save();
+}
+
 // Download PDF
 pdfBtn.addEventListener('click', async () => {
   pdfBtn.disabled = true;
   pdfBtn.textContent = 'downloading...';
   try {
-    const res = await fetch('/api/export/pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: nameInput.value,
-        date: dateInput.value
-      })
-    });
-    const blob = await res.blob();
+    const bytes = await buildPdf(nameInput.value, dateInput.value);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     download(url, 'certificate.pdf');
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (err) {
-    alert('error downloading pdf');
+    console.error(err);
+    alert('error creating pdf');
   } finally {
     pdfBtn.disabled = false;
     pdfBtn.textContent = 'download pdf';

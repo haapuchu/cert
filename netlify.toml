@@ -1,0 +1,3 @@
+# The site is fully static: PDFs are generated in the browser, so no server is needed.
+[build]
+  publish = "static"
